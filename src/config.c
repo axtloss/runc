@@ -6,8 +6,9 @@
 #include <string.h>
 #include "config.h"
 
-struct compile_cmd_t **ccmds;
-int ccmds_size = 0;
+struct compile_cmd_t ***ccmds;
+size_t ccmds_size = 0;
+
 int parse_config(const char *fpath, const struct stat *sb,
 		 int typeflag, struct FTW *ftwbuf)
 {
@@ -15,14 +16,18 @@ int parse_config(const char *fpath, const struct stat *sb,
     return 0;
 
   struct compile_cmd_t *ccmd = malloc (sizeof (struct compile_cmd_t));
-  struct compile_cmd_t **ccmds_tmp = realloc (ccmds, sizeof (ccmds)+sizeof (struct compile_cmd_t));
+  struct compile_cmd_t **ccmds_tmp = realloc (*ccmds, sizeof (ccmds)+sizeof (struct compile_cmd_t));
   if (ccmds_tmp)
-    ccmds = ccmds_tmp;
+    *ccmds = ccmds_tmp;
 
   FILE *cfg = fopen (fpath, "r");
 
+  int CMD_SET = 1;
+  int ARGS_SET = 2;
+  int FILEEXT_SET = 4;
+
   int filled = 0;
-  while (filled == 0) {
+  while (filled != (CMD_SET|ARGS_SET|FILEEXT_SET)) {
     char *line = strdup ("");
     int tmp_char;
     while ((tmp_char = fgetc (cfg))) {
@@ -32,7 +37,36 @@ int parse_config(const char *fpath, const struct stat *sb,
       if (tmp_char == '\n' || tmp_char == '\0')
 	break;
     }
-    printf ("%s", line);
+    char *seperator_fnd = strstr (line, "=");
+    if (!seperator_fnd)
+      puts ("invalid config line");
+    else {
+      char *value = strdup (seperator_fnd+1);
+      int identifier_len = strlen (line) - strlen (value) - 1;
+      char *identifier = malloc (identifier_len + 1);
+      strncpy(identifier, line, identifier_len);
+      identifier[identifier_len] = '\0';
+
+      if (strcmp (identifier, "compiler") == 0 && !(filled & CMD_SET)) {
+	ccmd->cmd = trim (strdup (value), NULL, NULL);
+	filled = filled | CMD_SET;
+      }
+      else if (strcmp (identifier, "args") == 0 && !(filled & ARGS_SET)) {
+	ccmd->args = trim (strdup (value), NULL, NULL);
+	filled = filled | ARGS_SET;
+      }
+      else if (strcmp (identifier, "fileext") == 0 && !(filled & FILEEXT_SET)) {
+	ccmd->fileext = trim (strdup (value), NULL, NULL);
+	filled = filled | FILEEXT_SET;
+      }
+      else {
+        printf ("warn: invalid configuration: %s\n", fpath);
+	exit (1);
+      }
+
+      free (identifier);
+      free (value);
+    }
     free (line);
   }
   fclose (cfg);
@@ -41,9 +75,9 @@ int parse_config(const char *fpath, const struct stat *sb,
   return 0;
 }
 
-void get_commands() {
-  //  struct compile_cmd_t **ccmds;
-  ccmds = malloc (sizeof (struct compile_cmd_t));
+size_t get_commands(struct compile_cmd_t ***ccmds_glob) {
+  ccmds = ccmds_glob;
+  *ccmds = malloc (sizeof (struct compile_cmd_t));
   char *home = getenv ("HOME");
   if (!home) {
     puts ("warn: HOME not found. Unable to read home configuration files.");
@@ -61,11 +95,5 @@ void get_commands() {
     free (paths[i]);
   }
   free (paths);
-
-  for (int i = 0; i < ccmds_size; i++) {
-    puts (ccmds[i]->cmd);
-    free (ccmds[i]->cmd);
-    free (ccmds[i]);
-  }
-  free (ccmds);
+  return ccmds_size;
 }

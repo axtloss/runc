@@ -1,7 +1,8 @@
+#include <stdlib.h>
 struct compile_cmd_t {
   char *cmd;
   char *args;
   char *fileext;
 };
 
-void get_commands();
+size_t get_commands(struct compile_cmd_t ***ccmds_glob);
