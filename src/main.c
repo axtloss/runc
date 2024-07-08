@@ -54,7 +54,7 @@ int main (int argc, char *argv[]) {
     exit (1);
   if (!excmd)
     exit (1);
-  puts (tmpdir);
+
   sprintf (cmd, "%s %s  %s -o %s/exec", matching_cmd->cmd, matching_cmd->args, argv[argc-1], tmpdir);
   int cmp_rtrn = system (cmd);
   if (cmp_rtrn != 0) {
@@ -62,16 +62,12 @@ int main (int argc, char *argv[]) {
     return 1;
   }
   sprintf (excmd, "%s/exec", tmpdir);
-  puts (cmd);
-  puts (excmd);
+
   int sys_rtrn = system (excmd);
   if (sys_rtrn != 0) {
     fprintf (stderr, "error: binary failed");
   }
-  /*  int rtrn = rrmdir (tmpdir);
-  if (rtrn != 0)
-    printf ("%d %d\n", rtrn, errno);
-  */
+
   for (int i = 0; i < ccmds_len; i++) {
     free (ccmds[i]->cmd);
     free (ccmds[i]);
