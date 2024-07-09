@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include <unistd.h>
 
 #define _XOPEN_SOURCE 500
@@ -19,62 +18,82 @@ struct compile_cmd_t *find_cmd(char *file_extension, struct compile_cmd_t **ccmd
 }
 
 int main (int argc, char *argv[]) {
-  struct compile_cmd_t **ccmds;
-  size_t ccmds_len;
+  int errno = 0;
+  size_t parts_len = 0;
+  size_t ccmds_len = 0;
+  struct compile_cmd_t **ccmds = NULL;
+  struct compile_cmd_t *matching_cmd = NULL;
+  char *tmpdir = strdup ("/tmp/XXXXXX");;
+  char *compile_file = NULL;
+  char *ap = NULL;
+  char *cmd = NULL;
+  char *excmd = NULL;
+  char *fileparts[strlen (argv[argc-1])];
 
+  if (argc < 2) {
+    fprintf (stderr, "usage: %s <source file>", argv[0]);
+    errno = 1;
+    goto EXIT;
+  }
+  compile_file = strdup(argv[argc-1]);
   ccmds_len = get_commands(&ccmds);
 
-  size_t arglength = strlen (argv[argc-1]);
-  char **ap, *fileparts[arglength], *inputstring;
-  inputstring = strdup (argv[argc-1]);
-  size_t parts_len = 0;
-  for (ap = fileparts; (*ap = strsep (&inputstring, ".")) != NULL;) {
-    if (**ap != '\0') {
-      if (++ap >= &inputstring)
-	break;
-      parts_len += 1;
-    }
+  for (int i = 0; (ap = strsep (&argv[argc-1], ".")); i++) {
+    fileparts[i] = ap;
+    parts_len += 1;
+  }
+  if (parts_len == 0) {
+    fprintf (stderr, "error: no file extension found\n");
+    errno = 1;
+    goto EXIT;
   }
 
-  struct compile_cmd_t *matching_cmd = find_cmd(fileparts[parts_len-1], ccmds, ccmds_len);
+  matching_cmd = find_cmd(fileparts[parts_len-1], ccmds, ccmds_len);
   if (!matching_cmd) {
-    puts ("error: no complier for file extension found");
-    return 1;
+    fprintf (stderr, "error: no complier for file extension '%s' found\n", fileparts[parts_len-1]);
+    errno = 1;
+    goto EXIT;
   }
 
-  char *tmplate = strdup ("/tmp/XXXXXX");
-  if (!tmplate)
-    exit (1);
-  char *tmpdir = mkdtemp(tmplate);
-  if (!tmpdir)
-    exit (1);
-  char *cmd = malloc (strlen (matching_cmd->cmd)+strlen(matching_cmd->args)+strlen(argv[argc-1])+strlen ("   -o   ")+strlen (tmpdir)+strlen ("/exec")+1);
-  char *excmd = malloc (strlen (tmplate)+strlen ("/exec")+1);
-  if (!cmd)
-    exit (1);
-  if (!excmd)
-    exit (1);
-
-  sprintf (cmd, "%s %s  %s -o %s/exec", matching_cmd->cmd, matching_cmd->args, argv[argc-1], tmpdir);
-  int cmp_rtrn = system (cmd);
-  if (cmp_rtrn != 0) {
-    fprintf(stderr, "error: compiler failed");
-    return 1;
+  tmpdir = mkdtemp(tmpdir);
+  if (!tmpdir) {
+    errno = 1;
+    goto EXIT;
   }
+
+  cmd = malloc (strlen (matching_cmd->cmd)+
+		      strlen (matching_cmd->args)+
+		      strlen (compile_file)+
+		      strlen ("   -o   ")+
+		      strlen (tmpdir)+
+		      strlen ("/exec")+1);
+  if (!cmd) {
+    errno = 1;
+    goto EXIT;
+  }
+  excmd = malloc (strlen (tmpdir)+strlen ("/exec")+1);
+  if (!excmd) {
+    errno = 1;
+    goto EXIT;
+  };
+  sprintf (cmd, "%s %s  %s -o %s/exec", matching_cmd->cmd, matching_cmd->args, compile_file, tmpdir);
+  if ((errno = system (cmd), errno != 0)) {
+    fprintf(stderr, "error: compiler failed with code %d\n", errno);
+    goto EXIT;
+  }
+
   sprintf (excmd, "%s/exec", tmpdir);
+  if ((errno = system (excmd), errno != 0))
+    fprintf (stderr, "error: binary failed with code %d\n", errno);
 
-  int sys_rtrn = system (excmd);
-  if (sys_rtrn != 0) {
-    fprintf (stderr, "error: binary failed");
-  }
 
-  for (int i = 0; i < ccmds_len; i++) {
-    free (ccmds[i]->cmd);
-    free (ccmds[i]);
-  }
-  free (ccmds);
-  free (tmpdir);
-  free (cmd);
-  free (excmd);
-  return 0;
+ EXIT:
+  for (int i = 0; i < ccmds_len; i++)
+    compile_cmd_free (ccmds[i]);
+  if (excmd) free (excmd);
+  if (ccmds) free (ccmds);
+  if (tmpdir) free (tmpdir);
+  if (cmd) free (cmd);
+  if (compile_file) free (compile_file);
+  exit(errno % 255);
 }
