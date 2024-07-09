@@ -10,7 +10,7 @@ make
 ```
 
 ## Usage
-`runc /path/to/code`
+`runc /path/to/code` or just add runc as the shebang to the source file
 
 Example configurations are located in the `config` folder, runc reads two config directories, `/etc/runc.d` and `~/.config/runc`.
 

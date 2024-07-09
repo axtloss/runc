@@ -26,7 +26,6 @@
 #include <extlib.h>
 #include "config.h"
 
-
 struct compile_cmd_t *find_cmd(char *file_extension, struct compile_cmd_t **ccmds, size_t ccmds_len) {
   for (int i = 0; i < ccmds_len; i++) {
     if (strcmp (ccmds[i]->fileext, file_extension) == 0) {
@@ -34,6 +33,21 @@ struct compile_cmd_t *find_cmd(char *file_extension, struct compile_cmd_t **ccmd
     }
   }
   return NULL;
+}
+
+void remove_shebang(char **file, char *tmpdir, char *file_extension) {
+  char *new_file_path = malloc (strlen (tmpdir)+strlen ("/source.")+strlen(file_extension)+1);
+  sprintf (new_file_path, "%s/source.%s", tmpdir, file_extension);
+  FILE *new_file = fopen (new_file_path, "w");
+  FILE *old_file = fopen (*file, "r");
+  char buffer[1024];
+  fgets (buffer, 1024, old_file);
+  fcopy (old_file, new_file);
+  fclose (new_file);
+  fclose (old_file);
+  free (*file);
+  *file = strdup (new_file_path);
+  free (new_file_path);
 }
 
 int main (int argc, char *argv[]) {
@@ -57,6 +71,12 @@ int main (int argc, char *argv[]) {
   compile_file = strdup(argv[argc-1]);
   ccmds_len = get_commands(&ccmds);
 
+  tmpdir = mkdtemp(tmpdir);
+  if (!tmpdir) {
+    errno = 1;
+    goto EXIT;
+  }
+
   for (int i = 0; (ap = strsep (&argv[argc-1], ".")); i++) {
     fileparts[i] = ap;
     parts_len += 1;
@@ -74,11 +94,13 @@ int main (int argc, char *argv[]) {
     goto EXIT;
   }
 
-  tmpdir = mkdtemp(tmpdir);
-  if (!tmpdir) {
-    errno = 1;
-    goto EXIT;
-  }
+  FILE *source = fopen (compile_file, "r");
+  //  char *is_shebang = malloc (strlen ("#!")+1);
+  char is_shebang[3];
+  fread (&is_shebang, 1, 2, source);
+  fclose (source);
+  if (strcmp (is_shebang, "#!") == 0)
+    remove_shebang (&compile_file, tmpdir, fileparts[parts_len-1]);
 
   cmd = malloc (strlen (matching_cmd->cmd)+
 		      strlen (matching_cmd->args)+
@@ -102,9 +124,13 @@ int main (int argc, char *argv[]) {
   }
 
   sprintf (excmd, "%s/exec", tmpdir);
-  if ((errno = system (excmd), errno != 0))
+  if ((errno = system (excmd), errno != 0)) {
     fprintf (stderr, "error: binary failed with code %d\n", errno);
+    goto EXIT;
+  }
 
+  if ((errno = rrmdir(tmpdir)), errno != 0)
+    fprintf (stderr, "error: failed to remove temporary directory %s\n", tmpdir);
 
  EXIT:
   for (int i = 0; i < ccmds_len; i++)
