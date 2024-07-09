@@ -2,6 +2,8 @@
 Execute source files based on a static configuration
 
 ## Building
+First make sure you have [extlib](https://codeberg.org/axtlos/extlib) installed.
+
 ```sh
 ./configure
 make
