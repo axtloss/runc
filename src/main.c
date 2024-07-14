@@ -135,10 +135,10 @@ int main (int argc, char *argv[]) {
  EXIT:
   for (int i = 0; i < ccmds_len; i++)
     compile_cmd_free (ccmds[i]);
-  if (excmd) free (excmd);
-  if (ccmds) free (ccmds);
-  if (tmpdir) free (tmpdir);
-  if (cmd) free (cmd);
-  if (compile_file) free (compile_file);
+  free (excmd);
+  free (ccmds);
+  free (tmpdir);
+  free (cmd);
+  free (compile_file);
   exit(errno % 255);
 }

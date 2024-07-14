@@ -40,9 +40,12 @@ struct compile_cmd_t *compile_cmd_init()
 void
 compile_cmd_free (struct compile_cmd_t *self)
 {
-  if (self->cmd) free (self->cmd);
-  if (self->args) free (self->args);
-  if (self->fileext) free (self->fileext);
+  if (self->cmd)
+    free (self->cmd);
+  if (self->args)
+    free (self->args);
+  if (self->fileext)
+    free (self->fileext);
   free (self);
 }
 
@@ -131,9 +134,11 @@ size_t get_commands(struct compile_cmd_t ***ccmds_glob) {
     sprintf (paths[1], "%s/.config/runc", home);
   }
   for (int i = 0; i < 2; i++) {
-    if (!paths[i]) break;
+    if (!paths[i])
+      break;
     nftw (paths[i], parse_config, 10, FTW_DEPTH|FTW_MOUNT|FTW_PHYS);
-    if (i==1) free (paths[i]);
+    if (i==1)
+      free (paths[i]);
   }
   return ccmds_size;
 }
