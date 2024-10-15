@@ -78,7 +78,7 @@ main (int argc, char *argv[])
         goto EXIT;
     }
     else if (argc > 2) {
-	extra_args = join_str(argv, argc-1, ' ');
+	extra_args = join_str(argv, argc-1, " ");
     }
     compile_file = strdup (argv[argc - 1]);
     ccmds_len = get_commands (&ccmds);
