@@ -31,9 +31,8 @@ find_cmd (char *file_extension, struct compile_cmd_t **ccmds,
           size_t ccmds_len)
 {
     for (int i = 0; i < ccmds_len; i++) {
-        if (strcmp (ccmds[i]->fileext, file_extension) == 0) {
+        if (strcmp (ccmds[i]->fileext, file_extension) == 0)
             return ccmds[i];
-        }
     }
     return NULL;
 }
@@ -46,12 +45,14 @@ remove_shebang (char **file, char *tmpdir, char *file_extension)
     sprintf (new_file_path, "%s/source.%s", tmpdir, file_extension);
     FILE *new_file = fopen (new_file_path, "w");
     FILE *old_file = fopen (*file, "r");
-    char buffer[1024];
-    fgets (buffer, 1024, old_file);
+    char *buffer = NULL;
+    size_t shebangSize = 0;
+    getline (&buffer, &shebangSize, old_file);
     fcopy (old_file, new_file);
     fclose (new_file);
     fclose (old_file);
     free (*file);
+    free (buffer);
     *file = strdup (new_file_path);
     free (new_file_path);
 }

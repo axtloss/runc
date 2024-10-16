@@ -18,6 +18,8 @@
  */
 
 #define _XOPEN_SOURCE 500
+#define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE
 #include <stdlib.h>
 #include <extlib.h>
 #include <ftw.h>
@@ -41,12 +43,9 @@ compile_cmd_init ()
 void
 compile_cmd_free (struct compile_cmd_t *self)
 {
-    if (self->cmd)
-        free (self->cmd);
-    if (self->args)
-        free (self->args);
-    if (self->fileext)
-        free (self->fileext);
+    free (self->cmd);
+    free (self->args);
+    free (self->fileext);
     free (self);
 }
 
@@ -56,12 +55,13 @@ parse_config (const char *fpath, const struct stat *sb,
 {
     if (!S_ISREG (sb->st_mode))
         return 0;
-    if (sb->st_size < 12)       // config file that doesnt even include "compiler=xx" can be ignored
+    if (sb->st_size < 21)       // config file that doesnt include "compiler=x" and "fileext=x" can be ignored
         return 0;
 
     struct compile_cmd_t *ccmd = compile_cmd_init ();
     struct compile_cmd_t **ccmds_tmp =
         realloc (*ccmds, sizeof (ccmds) + sizeof (struct compile_cmd_t));
+
     if (ccmds_tmp)
         *ccmds = ccmds_tmp;
 
@@ -72,52 +72,36 @@ parse_config (const char *fpath, const struct stat *sb,
 
     int filled = 0;
     while (filled != (CMD_SET | FILEEXT_SET)) {
-        char *line = strdup ("");
-        int tmp_char = '\0';
-        while ((tmp_char = fgetc (cfg))) {
-            char *line_tmp = realloc (line, strlen (line) + 8);
-            if (line_tmp)
-                line = line_tmp;
-            sprintf (line, "%s%c", line, tmp_char);
-            if (tmp_char == '\n' || tmp_char == '\0')
-                break;
-        }
-        char *seperator_fnd = strstr (line, "=");
-        if (!seperator_fnd)
+        char *line = NULL;
+        size_t lineBufSize = 0;
+        getline (&line, &lineBufSize, cfg);
+        char *identifier = strsep (&line, "=");
+        if (!line)
             fprintf (stderr, "warn: invalid configuration: %s\n", fpath);
         else {
-            char *value = strdup (seperator_fnd + 1);
-            int identifier_len = strlen (line) - strlen (value) - 1;
-            char *identifier = malloc (identifier_len + 1);
-            strncpy (identifier, line, identifier_len);
-            identifier[identifier_len] = '\0';
             if (strcmp (identifier, "compiler") == 0 && !(filled & CMD_SET)) {
-                ccmd->cmd = trim (value, NULL, NULL);
+                ccmd->cmd = trim (line, NULL, NULL);
                 filled = filled | CMD_SET;
             }
 	    else if (strcmp (identifier, "args") == 0) {
                 free (ccmd->args);
-                ccmd->args = trim (value, NULL, NULL);
+                ccmd->args = trim (line, NULL, NULL);
             }
             else if (strcmp (identifier, "fileext") == 0
                      && !(filled & FILEEXT_SET)) {
-                ccmd->fileext = trim (value, NULL, NULL);
+                ccmd->fileext = trim (line, NULL, NULL);
                 filled = filled | FILEEXT_SET;
             }
             else {
                 fprintf (stderr, "warn: invalid configuration: %s\n", fpath);
                 free (identifier);
-                free (value);
                 free (line);
                 fclose (cfg);
                 free (ccmd);
                 return 1;
             }
-
-            free (identifier);
-            free (value);
         }
-        free (line);
+	free (identifier);
     }
     fclose (cfg);
     ccmds_tmp[ccmds_size] = ccmd;
